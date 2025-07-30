@@ -1,0 +1,26 @@
+{
+    "project_name":       "bootloader",
+    "project_path":       "/Users/alex/esp/v5.1-rc2/esp-idf/components/bootloader/subproject",
+    "build_dir":          "/Users/alex/web/esp32/smart-fan/build/bootloader",
+    "config_file":        "/Users/alex/web/esp32/smart-fan/sdkconfig",
+    "config_defaults":    "",
+    "bootloader_elf":     "",
+    "app_elf":            "bootloader.elf",
+    "app_bin":            "bootloader.bin",
+    "build_type":         "flash_app",
+    "git_revision":       "v5.1-rc2-dirty",
+    "target":             "esp32c3",
+    "rev":                "",
+    "min_rev":            "3",
+    "max_rev":            "99",
+    "phy_data_partition": "",
+    "monitor_baud" :      "115200",
+    "monitor_toolprefix": "riscv32-esp-elf-",
+    "config_environment" : {
+        "COMPONENT_KCONFIGS" : "/Users/alex/esp/v5.1-rc2/esp-idf/components/efuse/Kconfig;/Users/alex/esp/v5.1-rc2/esp-idf/components/esp_common/Kconfig;/Users/alex/esp/v5.1-rc2/esp-idf/components/esp_hw_support/Kconfig;/Users/alex/esp/v5.1-rc2/esp-idf/components/esp_system/Kconfig;/Users/alex/esp/v5.1-rc2/esp-idf/components/freertos/Kconfig;/Users/alex/esp/v5.1-rc2/esp-idf/components/hal/Kconfig;/Users/alex/esp/v5.1-rc2/esp-idf/components/log/Kconfig;/Users/alex/esp/v5.1-rc2/esp-idf/components/newlib/Kconfig;/Users/alex/esp/v5.1-rc2/esp-idf/components/soc/Kconfig;/Users/alex/esp/v5.1-rc2/esp-idf/components/spi_flash/Kconfig",
+        "COMPONENT_KCONFIGS_PROJBUILD" : "/Users/alex/esp/v5.1-rc2/esp-idf/components/bootloader/Kconfig.projbuild;/Users/alex/esp/v5.1-rc2/esp-idf/components/esp_app_format/Kconfig.projbuild;/Users/alex/esp/v5.1-rc2/esp-idf/components/esp_rom/Kconfig.projbuild;/Users/alex/esp/v5.1-rc2/esp-idf/components/esptool_py/Kconfig.projbuild;/Users/alex/esp/v5.1-rc2/esp-idf/components/partition_table/Kconfig.projbuild"
+    },
+    "build_components" : [ "bootloader", "bootloader_support", "efuse", "esp_app_format", "esp_common", "esp_hw_support", "esp_rom", "esp_system", "esptool_py", "freertos", "hal", "log", "main", "micro-ecc", "newlib", "partition_table", "riscv", "soc", "spi_flash", "" ],
+    "build_component_paths" : [ "/Users/alex/esp/v5.1-rc2/esp-idf/components/bootloader", "/Users/alex/esp/v5.1-rc2/esp-idf/components/bootloader_support", "/Users/alex/esp/v5.1-rc2/esp-idf/components/efuse", "/Users/alex/esp/v5.1-rc2/esp-idf/components/esp_app_format", "/Users/alex/esp/v5.1-rc2/esp-idf/components/esp_common", "/Users/alex/esp/v5.1-rc2/esp-idf/components/esp_hw_support", "/Users/alex/esp/v5.1-rc2/esp-idf/components/esp_rom", "/Users/alex/esp/v5.1-rc2/esp-idf/components/esp_system", "/Users/alex/esp/v5.1-rc2/esp-idf/components/esptool_py", "/Users/alex/esp/v5.1-rc2/esp-idf/components/freertos", "/Users/alex/esp/v5.1-rc2/esp-idf/components/hal", "/Users/alex/esp/v5.1-rc2/esp-idf/components/log", "/Users/alex/esp/v5.1-rc2/esp-idf/components/bootloader/subproject/main", "/Users/alex/esp/v5.1-rc2/esp-idf/components/bootloader/subproject/components/micro-ecc", "/Users/alex/esp/v5.1-rc2/esp-idf/components/newlib", "/Users/alex/esp/v5.1-rc2/esp-idf/components/partition_table", "/Users/alex/esp/v5.1-rc2/esp-idf/components/riscv", "/Users/alex/esp/v5.1-rc2/esp-idf/components/soc", "/Users/alex/esp/v5.1-rc2/esp-idf/components/spi_flash", "" ],
+    "debug_prefix_map_gdbinit": ""
+}
