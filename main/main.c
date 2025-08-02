@@ -8,6 +8,7 @@
 #include "ssd1306.h"
 #include "esp_mac.h"
 #include <string.h>
+#include "fsm.h"
 
 #define I2C_MASTER_PORT I2C_NUM_0
 #define I2C_MASTER_SDA GPIO_NUM_5
@@ -68,9 +69,9 @@ void check_button_task(void *arg)
             }
 
             // Обробка кліку
-            relay_state = !relay_state;
-            gpio_set_level(RELAY_GPIO, relay_state ? RELAY_ON : RELAY_OFF);
-            printf("Relay toggled: %s\n", relay_state ? "ON" : "OFF");
+            relay_state = !fsm_is_fan_on(); 
+            fsm_set_manual_override(relay_state);
+            printf("Relay toggled: %s\n", fsm_is_fan_on() ? "ON" : "OFF");
         }
 
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -109,10 +110,11 @@ void app_main(void)
     ssd1306_clear_screen(&dev, false);
     ssd1306_contrast(&dev, 0xff);
     ssd1306_display_text(&dev, 4, "Loading...", strlen("Loading..."), true);
-
+    ssd1306_clear_screen(&dev, false);
 
     aht_init(I2C_MASTER_PORT);
     vTaskDelay(pdMS_TO_TICKS(200));
+    fsm_init();
 
     float temp = 0.0, hum = 0.0;
     printf("Scanning I2C bus...\n");
@@ -126,28 +128,45 @@ void app_main(void)
         }
     }
 
+    int timer_strlen = 0;
     while (1)
     {
         esp_err_t err = aht_read(&temp, &hum);
         if (err == ESP_OK)
         {
+            fsm_update(hum);
             char line[32];
             snprintf(line, sizeof(line), "T: %.1fC H: %.1f%%\n", temp, hum);
             // printf(line, sizeof(line), "T: %.1fC H: %.1f%%\n", temp, hum);
 
             char temp_line[32];
             char hum_line[32];
+            char fan_line[20];
+            char timer_line[20];
+            char state_line[20];
+            fsm_get_display_lines(fan_line, timer_line, state_line);
+
 
             snprintf(temp_line, sizeof(temp_line), "T: %.1fC", temp);
             snprintf(hum_line, sizeof(hum_line), "H: %.1f%%", hum); // %% escapes the percent sign
-            ssd1306_clear_screen(&dev, false);
+
+            // No need to redraw
             ssd1306_display_text(&dev, 3, temp_line, strlen(temp_line), false);
             ssd1306_display_text(&dev, 4, hum_line, strlen(hum_line), false);
-            ssd1306_display_text(&dev, 5, temp_line, strlen(temp_line), false);
-            ssd1306_display_text(&dev, 6, hum_line, strlen(hum_line), false);
-            ssd1306_display_text(&dev, 7, hum_line, strlen(hum_line), false);
-            ssd1306_display_text(&dev, 8, hum_line, strlen(hum_line), false);
+            ssd1306_display_text(&dev, 5, fan_line, strlen(fan_line), false);
+            ssd1306_display_text(&dev, 7, state_line, strlen(state_line), false);
+
+            if (strlen(timer_line) != timer_strlen) {
+                // Timer: clear if needed
+                ssd1306_clear_line(&dev, 6, false);
+                timer_strlen = strlen(timer_line);
+            }
+            ssd1306_display_text(&dev, 6, timer_line, strlen(timer_line), false);
+
+            // 3. Show all at once — no flicker!
+            ssd1306_show_buffer(&dev);
+            // ssd1306_clear_screen(&dev, false);
         }
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
