@@ -27,6 +27,7 @@ fsm_state_t fsm_get_state(void);
 bool fsm_is_fan_on(void);
 void fsm_get_display_lines(char *fan_line, char *timer_line, char *state_line);
 void fsm_set_manual_override(bool fan_state);
+uint8_t *fsm_get_state_icon(void);
 
 
 #endif
