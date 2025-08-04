@@ -3,6 +3,8 @@
 #include <string.h>
 #include "esp_timer.h"
 #include "driver/gpio.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 
 #define FAN_ON 0
 #define FAN_OFF 1
@@ -10,6 +12,7 @@
 
 #define MINUTES(x) ((x) * 60 * 1000000LL)
 #define LOGI(...) printf(__VA_ARGS__)
+#define MAX_LOG_ENTRIES 50
 
 static fsm_state_t current_state = IDLE;
 static int64_t last_high_humidity_time = 0;
@@ -48,6 +51,36 @@ bool fsm_is_fan_on()
     return fan_on;
 }
 
+static void log_fsm_transition_to_nvs(const char *transition_label, float humidity)
+{
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("fsm_log", NVS_READWRITE, &handle);
+    if (err != ESP_OK)
+        return;
+
+    uint32_t index = 0;
+    nvs_get_u32(handle, "log_index", &index);
+    index = (index + 1) % MAX_LOG_ENTRIES;
+
+    char key[16];
+    snprintf(key, sizeof(key), "entry_%lu", (unsigned long)index);
+
+    int64_t now = esp_timer_get_time();
+    int seconds = now / 1000000;
+    int hours = seconds / 3600;
+    int minutes = (seconds % 3600) / 60;
+    int secs = seconds % 60;
+
+    char log_line[64];
+    // Record: STATE + timestamp (in local ESP's time) converted to human time (since start)
+    snprintf(log_line, sizeof(log_line), "%02d:%02d:%02d: %s [%.1f%%]", hours, minutes, secs, transition_label, humidity);
+
+    nvs_set_str(handle, key, log_line);
+    nvs_set_u32(handle, "log_index", index);
+    nvs_commit(handle);
+    nvs_close(handle);
+}
+
 void fsm_init()
 {
     current_state = IDLE;
@@ -55,7 +88,30 @@ void fsm_init()
     last_high_humidity_time = esp_timer_get_time();
     fan_start_time = 0;
     last_transition_time = 0;
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
     LOGI("FSM initialized\n");
+    log_fsm_transition_to_nvs("FSM initialized", 0.0f);
+
+    // Print logs from the memory
+    nvs_handle_t handle;
+    nvs_open("fsm_log", NVS_READONLY, &handle);
+    for (int i = 0; i < MAX_LOG_ENTRIES; ++i)
+    {
+        char key[16], value[64];
+        size_t len = sizeof(value);
+        snprintf(key, sizeof(key), "entry_%02d", i);
+        if (nvs_get_str(handle, key, value, &len) == ESP_OK)
+        {
+            printf("%s: %s\n", key, value);
+        }
+    }
+    nvs_close(handle);
 }
 
 void fsm_update(float humidity)
@@ -70,12 +126,14 @@ void fsm_update(float humidity)
             current_state = COOLING;
             fsm_turn_fan_on();
             LOGI("Transition to COOLING\n");
+            log_fsm_transition_to_nvs("COOLING", humidity);
         }
         else if ((now - last_high_humidity_time) > MINUTES(360))
         {
             current_state = FORCE;
             fsm_turn_fan_on();
             LOGI("Transition to FORCE\n");
+            log_fsm_transition_to_nvs("FORCE", humidity);
         }
         if (humidity > 70.0)
         {
@@ -90,6 +148,7 @@ void fsm_update(float humidity)
             fsm_turn_fan_off();
             last_transition_time = now;
             LOGI("Transition to WAITING\n");
+            log_fsm_transition_to_nvs("WAITING", humidity);
         }
         break;
 
@@ -100,6 +159,7 @@ void fsm_update(float humidity)
             fsm_turn_fan_off();
             last_high_humidity_time = now;
             LOGI("Transition to IDLE (from FORCE)\n");
+            log_fsm_transition_to_nvs("IDLE (from FORCE)", humidity);
         }
         break;
 
@@ -108,6 +168,7 @@ void fsm_update(float humidity)
         {
             current_state = IDLE;
             LOGI("Transition to IDLE (from WAITING)\n");
+            log_fsm_transition_to_nvs("IDLE (from WAITING)", humidity);
         }
         break;
     }

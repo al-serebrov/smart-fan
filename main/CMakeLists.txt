@@ -1,3 +1,3 @@
 idf_component_register(SRCS "main.c" "fsm.c"
                     INCLUDE_DIRS "."
-                    REQUIRES aht ssd1306 esp_timer u8g2 u8g2-hal-esp-idf)
+                    REQUIRES aht ssd1306 esp_timer u8g2 u8g2-hal-esp-idf nvs_flash)

@@ -12,7 +12,10 @@
 #include "u8g2.h"
 #include "u8x8.h"
 #include "u8g2_esp32_hal.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 
+// ----- Display setup -----
 u8g2_t u8g2;
 
 #define DISPLAY_OFFSET_X 28
@@ -20,10 +23,24 @@ u8g2_t u8g2;
 #define OFFSET_X(x) ((x) + DISPLAY_OFFSET_X)
 #define OFFSET_Y(y) ((y) + DISPLAY_OFFSET_Y)
 
+#define UI_PAGE_STATUS 0
+#define UI_PAGE_LOGS   1
+#define UI_PAGE_COUNT  2
+#define UI_SCREEN_INTERVAL_TICKS 15  // 15 seconds
+#define LOG_SCROLL_INTERVAL_TICKS 1  // scroll logs every second
+#define MAX_LOG_LINES 5
+#define MAX_LOG_ENTRIES 50
+
+static int ui_screen_index = 0;
+static int log_scroll_tick = 0;
+static int log_scroll_offset = 0;
+
+// ----- I2C Setup -----
 #define I2C_MASTER_PORT I2C_NUM_0
 #define I2C_MASTER_SDA GPIO_NUM_5
 #define I2C_MASTER_SCL GPIO_NUM_6
 
+// --- Relay and button ---
 #define RELAY_GPIO GPIO_NUM_3
 #define BUTTON_GPIO GPIO_NUM_7
 
@@ -75,7 +92,50 @@ void check_button_task(void *arg)
     }
 }
 
-void draw_stuff(const char *hum_line, const char *temp_line)
+static void draw_log_screen()
+{
+    u8g2_ClearBuffer(&u8g2);
+    u8g2_SetFont(&u8g2, u8g2_font_profont10_tr);
+
+    nvs_handle_t handle;
+    if (nvs_open("fsm_log", NVS_READONLY, &handle) != ESP_OK)
+    {
+        u8g2_DrawStr(&u8g2, OFFSET_X(0), OFFSET_Y(10), "Log: NVS error");
+        u8g2_SendBuffer(&u8g2);
+        return;
+    }
+    
+    char lines[MAX_LOG_LINES][64];
+    int shown = 0;
+
+    // Go from newest to oldest
+    for (int i = MAX_LOG_ENTRIES - 1 - log_scroll_offset;
+         i >= 0 && shown < MAX_LOG_LINES;
+         i--)
+    {
+        char key[32];
+        size_t len = sizeof(lines[shown]);
+        snprintf(key, sizeof(key), "entry_%02d", i);
+
+        if (nvs_get_str(handle, key, lines[shown], &len) == ESP_OK)
+        {
+            shown++;
+        }
+    }
+
+    nvs_close(handle);
+    
+    // Draw from 0 → shown-1 → newest at top
+    for (int i = 0; i < shown; i++)
+    {
+        int y = OFFSET_Y(8 + i * 8);  // line height = 8px
+        u8g2_DrawStr(&u8g2, OFFSET_X(0), y, lines[i]);
+    }
+
+    u8g2_SendBuffer(&u8g2);
+}
+
+void draw_current_state(const char *hum_line, const char *temp_line)
 {
     static const uint8_t image_choice_bullet_off_bits[] = {0xe0, 0x03, 0x38, 0x0e, 0x0c, 0x18, 0x06, 0x30, 0x02, 0x20, 0x03, 0x60, 0x01, 0x40, 0x01, 0x40, 0x01, 0x40, 0x03, 0x60, 0x02, 0x20, 0x06, 0x30, 0x0c, 0x18, 0x38, 0x0e, 0xe0, 0x03, 0x00, 0x00};
     static const uint8_t image_choice_bullet_on_bits[] = {0xe0, 0x03, 0x38, 0x0e, 0xcc, 0x19, 0xf6, 0x37, 0xfa, 0x2f, 0xfb, 0x6f, 0xfd, 0x5f, 0xfd, 0x5f, 0xfd, 0x5f, 0xfb, 0x6f, 0xfa, 0x2f, 0xf6, 0x37, 0xcc, 0x19, 0x38, 0x0e, 0xe0, 0x03, 0x00, 0x00};
@@ -188,6 +248,7 @@ void app_main(void)
         }
     }
 
+    int tick_count = 0;
     while (1)
     {
         esp_err_t err = aht_read(&temp, &hum);
@@ -203,7 +264,33 @@ void app_main(void)
             snprintf(hum_line, sizeof(hum_line), "%.1f", hum);
 
             fsm_update(hum);
-            draw_stuff(temp_line, hum_line);
+            
+            // UI page switch every 15 seconds
+            tick_count++;
+            if (tick_count >= UI_SCREEN_INTERVAL_TICKS)
+            {
+                ui_screen_index = (ui_screen_index + 1) % UI_PAGE_COUNT;
+                tick_count = 0;
+                log_scroll_offset = 0;
+            }
+
+            // Scroll logs when in log view
+            if (ui_screen_index == UI_PAGE_LOGS)
+            {
+                log_scroll_tick++;
+                if (log_scroll_tick >= LOG_SCROLL_INTERVAL_TICKS)
+                {
+                    log_scroll_tick = 0;
+                    log_scroll_offset++;
+                    if (log_scroll_offset > MAX_LOG_ENTRIES - MAX_LOG_LINES)
+                        log_scroll_offset = 0;
+                }
+                draw_log_screen(log_scroll_offset);
+            }
+            else
+            {
+                draw_current_state(temp_line, hum_line);
+            }
         }
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
