@@ -57,3 +57,4 @@ sdkconfig.old
 # === If using idf.py full clean ===
 *.tmp
 
+.vscode
