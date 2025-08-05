@@ -12,11 +12,15 @@ Designed for reliability, offline functionality, and full transparency, it’s p
 
 ### 🧱 Hardware
 - **ESP32** microcontroller
-- **AHT10** humidity + temperature sensor
-- **5V Relay module** for fan control
+  - Note: I used ESP32-c3 board with built-in OLED display ([link](https://es.aliexpress.com/item/1005007342383107.html?spm=a2g0o.order_list.order_list_main.29.6d95194dGHTzVz&gatewayAdapt=glo2esp))
+- **AHT10** humidity + temperature sensor ([link](https://es.aliexpress.com/item/1005009024617540.html?spm=a2g0o.order_list.order_list_main.101.6d95194dGHTzVz&gatewayAdapt=glo2esp))
+- **5V Relay module** for fan control ([link](https://es.aliexpress.com/item/1005005865597217.html?spm=a2g0o.order_list.order_list_main.71.6d95194dGHTzVz&gatewayAdapt=glo2esp))
 - **OLED I2C display** (e.g. SSD1306)
 - **Push button** for manual override
-- Optional: onboard LED indicator
+
+### Wiring diagram
+
+<img width="1073" height="780" alt="Image" src="https://github.com/user-attachments/assets/6c7b2c6f-c27d-4993-9ae5-d16f417836a6" />
 
 ### ⚙️ Software / Logic
 - ✅ **Finite State Machine (FSM)** with 4 smart modes:
