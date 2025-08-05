@@ -14,6 +14,7 @@
 #include "u8g2_esp32_hal.h"
 #include "nvs_flash.h"
 #include "nvs.h"
+#include "time_sync_wifi.h"
 
 // ----- Display setup -----
 u8g2_t u8g2;
@@ -28,12 +29,13 @@ u8g2_t u8g2;
 #define UI_PAGE_COUNT  2
 #define UI_SCREEN_INTERVAL_TICKS 15  // 15 seconds
 #define LOG_SCROLL_INTERVAL_TICKS 1  // scroll logs every second
-#define MAX_LOG_LINES 5
+#define MAX_LOG_LINES 4
 #define MAX_LOG_ENTRIES 50
 
+static int log_total_pages = 1;
+static int log_page_index = 0;
+
 static int ui_screen_index = 0;
-static int log_scroll_tick = 0;
-static int log_scroll_offset = 0;
 
 // ----- I2C Setup -----
 #define I2C_MASTER_PORT I2C_NUM_0
@@ -104,34 +106,48 @@ static void draw_log_screen()
         u8g2_SendBuffer(&u8g2);
         return;
     }
-    
-    char lines[MAX_LOG_LINES][64];
+
+    uint32_t index = 0;
+    nvs_get_u32(handle, "log_index", &index);
+
+    // Calculate how many logs we actually have
+    int entries_found = 0;
+    for (int i = 0; i < MAX_LOG_ENTRIES; i++)
+    {
+        char key[16];
+        snprintf(key, sizeof(key), "entry_%d", i);
+        size_t len = 0;
+        if (nvs_get_str(handle, key, NULL, &len) == ESP_OK && len > 1)
+            entries_found++;
+    }
+
+    log_total_pages = (entries_found + MAX_LOG_LINES - 1) / MAX_LOG_LINES;
+
+    // Get logs from newest to oldest
+    int start = entries_found - 1 - (log_page_index * MAX_LOG_LINES);
     int shown = 0;
 
-    // Go from newest to oldest
-    for (int i = MAX_LOG_ENTRIES - 1 - log_scroll_offset;
-         i >= 0 && shown < MAX_LOG_LINES;
-         i--)
+    for (int i = start; i >= 0 && shown < MAX_LOG_LINES; i--)
     {
         char key[32];
-        size_t len = sizeof(lines[shown]);
-        snprintf(key, sizeof(key), "entry_%02d", i);
+        snprintf(key, sizeof(key), "entry_%d", i);
 
-        if (nvs_get_str(handle, key, lines[shown], &len) == ESP_OK)
+        char line[64];
+        size_t len = sizeof(line);
+        if (nvs_get_str(handle, key, line, &len) == ESP_OK)
         {
+            int y = OFFSET_Y(8 + shown * 8);
+            u8g2_DrawStr(&u8g2, OFFSET_X(0), y, line);
             shown++;
         }
     }
 
-    nvs_close(handle);
-    
-    // Draw from 0 → shown-1 → newest at top
-    for (int i = 0; i < shown; i++)
-    {
-        int y = OFFSET_Y(8 + i * 8);  // line height = 8px
-        u8g2_DrawStr(&u8g2, OFFSET_X(0), y, lines[i]);
-    }
+    // Draw pagination info in the last line
+    char footer[32];
+    snprintf(footer, sizeof(footer), "[%d / %d]", log_page_index + 1, log_total_pages);
+    u8g2_DrawStr(&u8g2, OFFSET_X(0), OFFSET_Y(8 + MAX_LOG_LINES * 8), footer);
 
+    nvs_close(handle);
     u8g2_SendBuffer(&u8g2);
 }
 
@@ -218,6 +234,7 @@ void app_main(void)
 
     // One single I2C for OLED + AHT10
     my_i2c_master_init(I2C_MASTER_PORT, I2C_MASTER_SDA, I2C_MASTER_SCL);
+    time_sync_init();
 
     u8g2_Setup_ssd1306_i2c_128x64_noname_f(
         &u8g2,
@@ -249,49 +266,50 @@ void app_main(void)
     }
 
     int tick_count = 0;
+    int log_page_duration_ticks = 3;  // default for first 2 pages
+
     while (1)
     {
         esp_err_t err = aht_read(&temp, &hum);
         if (err == ESP_OK)
         {
-            // char line[32];
-            // snprintf(line, sizeof(line), "T: %.1fC H: %.1f%%\n", temp, hum);
-            // printf(line); // logging to the console
-
             char temp_line[32];
             char hum_line[32];
             snprintf(temp_line, sizeof(temp_line), "%.1f", temp);
             snprintf(hum_line, sizeof(hum_line), "%.1f", hum);
 
             fsm_update(hum);
-            
-            // UI page switch every 15 seconds
+
             tick_count++;
-            if (tick_count >= UI_SCREEN_INTERVAL_TICKS)
+            if (tick_count >= log_page_duration_ticks)
             {
-                ui_screen_index = (ui_screen_index + 1) % UI_PAGE_COUNT;
                 tick_count = 0;
-                log_scroll_offset = 0;
+
+                if (ui_screen_index == UI_PAGE_LOGS)
+                {
+                    log_page_index++;
+                    if (log_page_index >= log_total_pages)
+                    {
+                        log_page_index = 0;
+                        ui_screen_index = UI_PAGE_STATUS;
+                    }
+
+                    log_page_duration_ticks = (log_page_index < 2) ? 3 : 1;
+                }
+                else
+                {
+                    ui_screen_index = UI_PAGE_LOGS;
+                    log_page_index = 0;
+                    log_page_duration_ticks = 3;
+                }
             }
 
-            // Scroll logs when in log view
             if (ui_screen_index == UI_PAGE_LOGS)
-            {
-                log_scroll_tick++;
-                if (log_scroll_tick >= LOG_SCROLL_INTERVAL_TICKS)
-                {
-                    log_scroll_tick = 0;
-                    log_scroll_offset++;
-                    if (log_scroll_offset > MAX_LOG_ENTRIES - MAX_LOG_LINES)
-                        log_scroll_offset = 0;
-                }
-                draw_log_screen(log_scroll_offset);
-            }
+                draw_log_screen();
             else
-            {
                 draw_current_state(temp_line, hum_line);
-            }
         }
+
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }

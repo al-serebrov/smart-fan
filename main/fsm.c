@@ -5,6 +5,8 @@
 #include "driver/gpio.h"
 #include "nvs_flash.h"
 #include "nvs.h"
+#include <time.h>
+#include "time_sync_wifi.h"
 
 #define FAN_ON 0
 #define FAN_OFF 1
@@ -53,11 +55,23 @@ bool fsm_is_fan_on()
 
 static void log_fsm_transition_to_nvs(const char *transition_label, float humidity)
 {
+    int64_t now_us = esp_timer_get_time();
+    int seconds = now_us / 1000000;
+
+    static bool initialized_logged = false;
+    if (strcmp(transition_label, "FSM initialized") == 0)
+    {
+        if (seconds < 20 || initialized_logged)
+            return;
+
+        initialized_logged = true;
+    }
+
     nvs_handle_t handle;
-    esp_err_t err = nvs_open("fsm_log", NVS_READWRITE, &handle);
-    if (err != ESP_OK)
+    if (nvs_open("fsm_log", NVS_READWRITE, &handle) != ESP_OK)
         return;
 
+    // Get current log index
     uint32_t index = 0;
     nvs_get_u32(handle, "log_index", &index);
     index = (index + 1) % MAX_LOG_ENTRIES;
@@ -65,16 +79,35 @@ static void log_fsm_transition_to_nvs(const char *transition_label, float humidi
     char key[16];
     snprintf(key, sizeof(key), "entry_%lu", (unsigned long)index);
 
-    int64_t now = esp_timer_get_time();
-    int seconds = now / 1000000;
-    int hours = seconds / 3600;
-    int minutes = (seconds % 3600) / 60;
-    int secs = seconds % 60;
-
     char log_line[64];
-    // Record: STATE + timestamp (in local ESP's time) converted to human time (since start)
-    snprintf(log_line, sizeof(log_line), "%02d:%02d:%02d: %s [%.1f%%]", hours, minutes, secs, transition_label, humidity);
 
+    if (time_is_valid())
+    {
+        // Use real-world time
+        time_t now;
+        time(&now);
+        struct tm timeinfo;
+        localtime_r(&now, &timeinfo);
+
+        snprintf(log_line, sizeof(log_line),
+                 "%02d:%02d:%02d: %s [%.1f%%]",
+                 timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec,
+                 transition_label, humidity);
+    }
+    else
+    {
+        // Fallback: time since boot
+        int hours = seconds / 3600;
+        int minutes = (seconds % 3600) / 60;
+        int secs = seconds % 60;
+
+        snprintf(log_line, sizeof(log_line),
+                 "+%02d:%02d:%02d: %s [%.1f%%]",
+                 hours, minutes, secs,
+                 transition_label, humidity);
+    }
+
+    // Store in NVS
     nvs_set_str(handle, key, log_line);
     nvs_set_u32(handle, "log_index", index);
     nvs_commit(handle);
