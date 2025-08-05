@@ -1,0 +1,59 @@
+# === Build files ===
+**/build/
+/*.elf
+/*.map
+/*.bin
+/*.hex
+/*.bin
+/*.exe
+
+# === CMake / Ninja / Make ===
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+build.ninja
+rules.ninja
+
+# === Project description ===
+project_description.json
+
+# === Flashing logs / OTA / partitions ===
+*.csv
+*.log
+*.bak
+
+# === Python virtual env (if used) ===
+.env/
+.venv/
+venv/
+env/
+
+# === VSCode or CLion IDE ===
+.vscode/
+.idea/
+
+# === OS junk ===
+.DS_Store
+Thumbs.db
+
+# === ESP-IDF Python cache ===
+__pycache__/
+*.pyc
+*.pyo
+
+# === NVS partition tool ===
+nvs_partition_gen.py
+nvs_partition_gen_bin/
+
+# === ESP-IDF managed components cache ===
+managed_components/
+
+# === Optional: exclude sdkconfig ===
+# sdkconfig is often edited by menuconfig; if you want a default, track sdkconfig.defaults instead
+sdkconfig
+sdkconfig.old
+
+# === If using idf.py full clean ===
+*.tmp
+
