@@ -1,35 +1,95 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C6 | ESP32-H2 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- |
+# 🌬️ ESP32 Smart Fan Controller with OLED, FSM, Logging & Time Sync
 
-# _Sample project_
+This project is a compact yet feature-rich fan controller built on the ESP32 platform, with an OLED display, a humidity/temperature sensor, time-synchronized logging, and custom finite state machine (FSM) logic.
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+Designed for reliability, offline functionality, and full transparency, it’s perfect for DIY air quality, ventilation, or climate control projects.
 
-This is the simplest buildable example. The example is used by command `idf.py create-project`
-that copies the project to user specified path and set it's name. For more information follow the [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project)
+---
 
+## 🧰 Features
 
+### 🧱 Hardware
+- **ESP32** microcontroller
+- **AHT10** humidity + temperature sensor
+- **5V Relay module** for fan control
+- **OLED I2C display** (e.g. SSD1306)
+- **Push button** for manual override
+- Optional: onboard LED indicator
 
-## How to use example
-We encourage the users to use the example as a template for the new projects.
-A recommended way is to follow the instructions on a [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project).
+### ⚙️ Software / Logic
+- ✅ **Finite State Machine (FSM)** with 4 smart modes:
+  - `IDLE`, `COOLING`, `WAITING`, `FORCE`
+- ✅ **Humidity-based automation**
+- ✅ **Manual override** (fan on/off via button)
+- ✅ **OLED UI with two pages**:
+  - Live state (fan, humidity, timer)
+  - Log view with pagination
+- ✅ **Logs stored in flash** (via NVS)
+  - Tracks state transitions and humidity
+  - Shows real-world time if synced, or `+HH:MM:SS` since boot
+- ✅ **Time sync over Wi-Fi**
+  - Automatically connects to known hotspot (e.g. your phone)
+  - Syncs time via NTP (SNTP)
+  - Applies local timezone (e.g. GMT+2 with DST)
 
-## Example folder contents
+---
 
-The project **sample_project** contains one source file in C language [main.c](main/main.c). The file is located in folder [main](main).
+## 🕹 UI Behavior
 
-ESP-IDF projects are built using CMake. The project build configuration is contained in `CMakeLists.txt`
-files that provide set of directives and instructions describing the project's source files and targets
-(executable, library, or both). 
+- First screen: live fan state, humidity, timer
+- Second screen: logs (4 per page) + pagination `[1 / N]`
+- Screens auto-rotate (3s first pages, 1s for others)
+- Clean formatting for readability on small screen
 
-Below is short explanation of remaining files in the project folder.
+---
 
-```
-├── CMakeLists.txt
-├── main
-│   ├── CMakeLists.txt
-│   └── main.c
-└── README.md                  This is the file you are currently reading
-```
-Additionally, the sample project contains Makefile and component.mk files, used for the legacy Make based build system. 
-They are not used or needed when building with CMake and idf.py.
+## 🧠 FSM Logic (Simplified)
+
+| State     | Trigger                    | Action           |
+|-----------|----------------------------|------------------|
+| `IDLE`    | Humidity > 70%             | → `COOLING`      |
+|           | No high humidity for 6 hrs | → `FORCE`        |
+| `COOLING` | 30 min passed OR dry air   | → `WAITING`      |
+| `WAITING` | 2 hours passed             | → `IDLE`         |
+| `FORCE`   | 30 min passed              | → `IDLE`         |
+
+---
+
+## 🕓 Time Management
+
+- Uses SNTP via Wi-Fi
+- Automatically connects to phone hotspot if available
+- Sets timezone to Central European Time (CEST / GMT+2)
+- Falls back to uptime-based logs when offline
+- Clean switching between real time and fallback mode
+
+---
+
+## 🧪 Development Notes
+
+- Logs are stored using NVS (non-volatile flash)
+- Old logs are automatically rotated (FIFO)
+- First 20s after boot are ignored for noise filtering
+- Time sync is only attempted when Wi-Fi connects
+- Safe to run offline indefinitely
+
+---
+
+## 📦 Future Ideas
+
+- Long-press to clear logs
+- LED for Wi-Fi or fan state
+- Web interface for live display
+- More sensors (CO₂, motion, etc.)
+
+---
+
+## 🛠 Build & Flash
+
+ESP-IDF required (v5.1 recommended)
+
+```bash
+idf.py set-target esp32
+idf.py build
+idf.py -p /dev/ttyUSB0 flash monitor
+
