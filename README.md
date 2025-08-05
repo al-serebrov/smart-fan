@@ -4,6 +4,8 @@ This project is a compact yet feature-rich fan controller built on the ESP32 pla
 
 Designed for reliability, offline functionality, and full transparency, it’s perfect for DIY air quality, ventilation, or climate control projects.
 
+![Image](https://github.com/user-attachments/assets/f3608a15-1333-4bac-b3aa-3f61265ff9aa)
+
 ---
 
 ## 🧰 Features
